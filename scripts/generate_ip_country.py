@@ -1,79 +1,49 @@
 #!/usr/bin/env python3
-import requests
 import random
 
-URL = "https://raw.githubusercontent.com/ymyuuu/IPDB/main/BestCF/ipv4.csv"
+# ✅ 香港高概率段（社区长期验证）
+HK_RANGES = [
+    "104.19.37.",
+    "104.19.38.",
+    "104.19.39.",
+    "172.67.1.",
+    "172.67.7.",
+    "104.16.248."
+]
 
-GLOBAL_FILE = "cf_ipv4.txt"   # ✅ 随机 15 个全球 CF IP
-HK_FILE = "cf_hk.txt"         # ✅ 随机 50 个香港 CF IP
+# ✅ 全局候选（你可以继续扩展）
+GLOBAL_RANGES = HK_RANGES  # 目前复用香港段，如需更多段可自行添加
 
+GLOBAL_COUNT = 15
+HK_COUNT = 50
 
-def fetch_ipdb():
-    try:
-        resp = requests.get(URL, timeout=10)
-        if resp.status_code == 200:
-            lines = resp.text.split("\n")
-            parsed = []
-            for line in lines:
-                parts = line.split(",")
-                if len(parts) >= 3:
-                    ip = parts[0].strip()
-                    country = parts[1].strip()
-                    asn = parts[2].strip()
-                    if ip.count(".") == 3:
-                        parsed.append((ip, country, asn))
-            return parsed
-    except Exception as e:
-        print("获取 IPDB 失败:", e)
-    return []
+GLOBAL_FILE = "cf_ipv4.txt"
+HK_FILE = "cf_hk.txt"
 
 
-def generate_global_ips(ipdb):
-    """随机抽取 15 个全球 Cloudflare IP"""
-    ips = [ip for ip, _, _ in ipdb]
-    count = min(15, len(ips))
-    selected = random.sample(ips, count)
-
-    with open(GLOBAL_FILE, "w") as f:
-        for ip in selected:
-            f.write(ip + "\n")
-
-    print(f"✅ 已写入 {GLOBAL_FILE} 共 {len(selected)} 个 IP")
-
-
-def generate_hk_ips(ipdb):
-    """随机抽取 50 个香港 Cloudflare IP（HK + AS13335）"""
-    hk_ips = [ip for ip, country, asn in ipdb if country == "HK" and asn == "AS13335"]
-
-    if not hk_ips:
-        print("❌ 未找到香港 Cloudflare IP，生成空文件")
-        open(HK_FILE, "w").close()
-        return
-
-    count = min(50, len(hk_ips))
-    selected = random.sample(hk_ips, count)
-
-    with open(HK_FILE, "w") as f:
-        for ip in selected:
-            f.write(ip + "\n")
-
-    print(f"✅ 已写入 {HK_FILE} 共 {len(selected)} 个香港 IP")
+def generate_from_ranges(prefix_list, count):
+    """从 IP 段随机生成指定数量的 IP"""
+    ips = []
+    for prefix in prefix_list:
+        for i in range(1, 255):
+            ips.append(prefix + str(i))
+    return random.sample(ips, min(count, len(ips)))
 
 
 def main():
-    print("=== 从 IPDB 获取 Cloudflare IP 列表 ===")
-    ipdb = fetch_ipdb()
+    print("=== 生成 Cloudflare 全球随机 15 个 IP ===")
+    global_ips = generate_from_ranges(GLOBAL_RANGES, GLOBAL_COUNT)
+    with open(GLOBAL_FILE, "w") as f:
+        for ip in global_ips:
+            f.write(ip + "\n")
+    print(f"✅ 已写入 {GLOBAL_FILE} 共 {len(global_ips)} 个 IP")
 
-    if not ipdb:
-        print("❌ IPDB 获取失败，两个文件均生成空内容")
-        open(GLOBAL_FILE, "w").close()
-        open(HK_FILE, "w").close()
-        return
-
-    print(f"✅ 成功解析 {len(ipdb)} 条 IPDB 数据")
-
-    generate_global_ips(ipdb)
-    generate_hk_ips(ipdb)
+    print("=== 生成 Cloudflare 香港随机 50 个 IP ===")
+    hk_ips = generate_from_ranges(HK_RANGES, HK_COUNT)
+    with open(HK_FILE, "w") as f:
+        for ip in hk_ips:
+            f.write(ip + "\n")
+    print(f"✅ 已写入 {HK_FILE} 共 {len(hk_ips)} 个香港 IP")
 
 
 if __name__ == "__main__":
