@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 import requests
+import re
 import subprocess
-import time
 
-IP_SOURCE = "https://ip.164746.xyz/ipTop.txt"
+HTML_SOURCE = "https://ip.164746.xyz/ipTop.html"
 OUTPUT_FILE = "best_cf_ip.txt"
-
 
 def fetch_ip_list():
     try:
-        resp = requests.get(IP_SOURCE, timeout=10)
+        resp = requests.get(HTML_SOURCE, timeout=10)
         if resp.status_code == 200:
-            ips = [line.strip() for line in resp.text.split("\n") if line.strip()]
-            return ips
+            html = resp.text
+            # 从 HTML 中提取 IPv4
+            ips = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", html)
+            return list(set(ips))  # 去重
     except Exception as e:
         print("获取 IP 列表失败:", e)
     return []
-
 
 def ping_ip(ip):
     try:
@@ -34,9 +34,8 @@ def ping_ip(ip):
         pass
     return 9999.0
 
-
 def main():
-    print("=== 获取 Cloudflare IP 列表 ===")
+    print("=== 获取 Cloudflare IP 列表（HTML） ===")
     ips = fetch_ip_list()
 
     if not ips:
@@ -49,7 +48,7 @@ def main():
     best_ip = None
     best_rtt = 9999.0
 
-    for ip in ips[:50]:  # 限制前 50 个，避免 GitHub Actions 超时
+    for ip in ips[:50]:  # 限制前 50 个，避免 Actions 超时
         print(f"测试 {ip} ...")
         rtt = ping_ip(ip)
         print(f"RTT = {rtt} ms")
@@ -66,7 +65,6 @@ def main():
         f.write(best_ip + "\n")
 
     print(f"✅ 已写入 {OUTPUT_FILE}")
-
 
 if __name__ == "__main__":
     main()
