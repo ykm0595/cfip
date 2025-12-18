@@ -1,4 +1,4 @@
-name: CF IPv4 Auto Update
+name: CF IP Auto Update
 
 permissions:
   contents: write
@@ -16,22 +16,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run IP fetch script
+      - name: Run IP generation script
         run: python3 scripts/generate_ip_country.py
 
-      - name: Show generated file
+      - name: Show results
         run: |
-          echo "=== cf_ipv4.txt 内容 ==="
+          echo "=== cf_ipv4.txt ==="
           cat cf_ipv4.txt || echo "文件不存在"
+          echo ""
+          echo "=== cf_hk.txt ==="
+          cat cf_hk.txt || echo "文件不存在"
 
-      - name: Commit and push changes
+      - name: Commit & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git status --porcelain | grep -q "cf_ipv4.txt"; then
-            git add cf_ipv4.txt
-            git commit -m "Update cf_ipv4.txt [auto]"
+          if git status --porcelain | grep -qE "cf_ipv4.txt|cf_hk.txt"; then
+            git add cf_ipv4.txt cf_hk.txt
+            git commit -m "Auto update CF IP lists"
             git push
           else
             echo "没有变化，不提交"
