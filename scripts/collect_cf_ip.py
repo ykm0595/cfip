@@ -6,7 +6,7 @@ import time
 import socket
 import ipaddress
 import urllib.request
-import json
+import subprocess
 
 # -------------------------------
 # Cloudflare 机房代码 → 国家简写
@@ -34,7 +34,7 @@ CLO_MAP = {
 }
 
 # -------------------------------
-# 数据源（可自行增删）
+# 数据源
 # -------------------------------
 SOURCES = [
     "https://cf.vvhan.com",
@@ -72,7 +72,7 @@ def normalize_ipv4(ip: str) -> str:
     except:
         return ""
 
-def basic_reachable(ip: str, port: int = 443, timeout: float = 0.8) -> bool:
+def tcp_alive(ip: str, port: int = 443, timeout: float = 0.8) -> bool:
     try:
         with socket.create_connection((ip, port), timeout=timeout):
             return True
@@ -80,12 +80,29 @@ def basic_reachable(ip: str, port: int = 443, timeout: float = 0.8) -> bool:
         return False
 
 # -------------------------------
+# TLS + SNI 测试（确保“真的能用”）
+# -------------------------------
+def tls_sni_ok(ip: str) -> bool:
+    """
+    使用 curl + SNI 测试 Cloudflare 是否可用
+    """
+    try:
+        cmd = [
+            "curl", "-I",
+            "--resolve", f"cloudflare.com:443:{ip}",
+            "https://cloudflare.com",
+            "--max-time", "2",
+            "-o", "/dev/null"
+        ]
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return r.returncode == 0
+    except:
+        return False
+
+# -------------------------------
 # 获取 Cloudflare 真实机房
 # -------------------------------
 def get_cf_location(ip: str) -> str:
-    """
-    返回国家简写，如 US、HK、JP、DE
-    """
     url = f"http://{ip}/cdn-cgi/trace"
     try:
         with urllib.request.urlopen(url, timeout=1.5) as resp:
@@ -114,20 +131,27 @@ def main():
 
     print(f"[INFO] Unique IP count: {len(all_ips)}")
 
-    reachable = []
+    alive = []
     for ip in sorted(all_ips):
-        if basic_reachable(ip):
-            reachable.append(ip)
+        if tcp_alive(ip):
+            alive.append(ip)
         time.sleep(0.01)
 
-    print(f"[INFO] Reachable IP count: {len(reachable)}")
+    print(f"[INFO] TCP alive count: {len(alive)}")
+
+    usable = []
+    for ip in alive:
+        if tls_sni_ok(ip):
+            usable.append(ip)
+
+    print(f"[INFO] TLS usable count: {len(usable)}")
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        for ip in reachable:
+        for ip in usable:
             loc = get_cf_location(ip)
             f.write(f"{ip}#{loc}\n")
 
-    print(f"[INFO] Write {len(reachable)} lines to {OUTPUT_FILE}")
+    print(f"[INFO] Write {len(usable)} lines to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
