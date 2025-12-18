@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import requests
+import random
 
 URL = "https://raw.githubusercontent.com/ymyuuu/IPDB/main/BestCF/ipv4.csv"
-OUTPUT_FILE = "cf_ipv4.txt"   # ✅ 你要的文件名
+OUTPUT_FILE = "cf_ipv4.txt"
 
 def fetch_ip_list():
     try:
@@ -30,15 +31,17 @@ def main():
         open(OUTPUT_FILE, "w").close()
         return
 
-    print(f"获取到 {len(ips)} 个 IP，写入前 15 个…")
+    print(f"获取到 {len(ips)} 个 IP，随机抽取 15 个…")
 
-    top15 = ips[:15]
+    # ✅ 随机抽取 15 个（如果不足 15 个，就全部使用）
+    sample_count = min(15, len(ips))
+    selected_ips = random.sample(ips, sample_count)
 
     with open(OUTPUT_FILE, "w") as f:
-        for ip in top15:
+        for ip in selected_ips:
             f.write(ip + "\n")
 
-    print(f"✅ 已写入 {OUTPUT_FILE} 共 {len(top15)} 个 IP")
+    print(f"✅ 已写入 {OUTPUT_FILE} 共 {len(selected_ips)} 个 IP")
 
 if __name__ == "__main__":
     main()
