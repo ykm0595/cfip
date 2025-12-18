@@ -2,7 +2,7 @@
 import requests
 
 URL = "https://raw.githubusercontent.com/ymyuuu/IPDB/main/BestCF/ipv4.csv"
-OUTPUT_FILE = "best_cf_ip.txt"
+OUTPUT_FILE = "cf_ipv4.txt"   # ✅ 你要的文件名
 
 def fetch_ip_list():
     try:
