@@ -1,37 +1,43 @@
-#!/bin/bash
+#!/usr/bin/env python3
+import requests
 
-set -e
+def get_ip_list():
+    url = "https://ip.164746.xyz/ipTop.txt"
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            return [line.strip() for line in resp.text.split("\n") if line.strip()]
+    except:
+        pass
+    return []
 
-echo "=== 获取 Cloudflare IP 列表 ==="
-curl -s https://ip.164746.xyz/ipTop.txt > all_ip.txt
+def get_country(ip):
+    url = f"https://ipinfo.io/{ip}/json"
+    try:
+        resp = requests.get(url, timeout=2)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("country", "UN")
+    except:
+        pass
+    return "UN"
 
-echo "=== 开始 ICMP 延迟测试 ==="
-> ping_result.txt
+def main():
+    ip_list = get_ip_list()
 
-while read -r ip; do
-    if [ -n "$ip" ]; then
-        rtt=$(ping -c 3 -W 1 $ip 2>/dev/null | grep avg | awk -F'/' '{print $5}')
-        if [ -z "$rtt" ]; then
-            rtt=9999
-        fi
-        echo "$rtt $ip" >> ping_result.txt
-    fi
-done < all_ip.txt
+    if not ip_list:
+        print("未获取到 IP 列表")
+        return
 
-echo "=== 按延迟排序，取前 10 个 ==="
-sort -n ping_result.txt | head -n 10 | awk '{print $2}' > top10.txt
+    print(f"获取到 {len(ip_list)} 个 IP，开始查询归属地…")
 
-echo "=== 开始 curl 下载测速 ==="
-> speed_result.txt
+    with open("cf_ipv4.txt", "w", encoding="utf-8") as f:
+        for ip in ip_list:
+            country = get_country(ip)
+            f.write(f"{ip}#{country}\n")
+            print(f"{ip} → {country}")
 
-for ip in $(cat top10.txt); do
-    echo "测速 $ip"
-    speed=$(curl -o /dev/null -s -w "%{speed_download}" --connect-timeout 2 --max-time 5 https://$ip/cdn-cgi/trace || echo 0)
-    echo "$speed $ip" >> speed_result.txt
-done
+    print("\n✅ 已生成 cf_ipv4.txt")
 
-echo "=== 选出最快的 IP ==="
-best_ip=$(sort -nr speed_result.txt | head -n 1 | awk '{print $2}')
-
-echo "最佳 IP: $best_ip"
-echo "$best_ip" > best_cf_ip.txt
+if __name__ == "__main__":
+    main()
