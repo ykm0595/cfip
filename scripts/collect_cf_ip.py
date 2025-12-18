@@ -8,6 +8,34 @@ import ipaddress
 import urllib.request
 import json
 
+# -------------------------------
+# Cloudflare 机房代码 → 国家简写
+# -------------------------------
+CLO_MAP = {
+    "HKG": "HK", "TPE": "TW",
+    "NRT": "JP", "KIX": "JP", "FUK": "JP",
+
+    "LAX": "US", "SJC": "US", "SEA": "US",
+    "ORD": "US", "IAD": "US", "DFW": "US",
+    "MIA": "US", "ATL": "US", "BOS": "US",
+    "EWR": "US",
+
+    "FRA": "DE", "MUC": "DE", "HAM": "DE",
+
+    "AMS": "NL", "CDG": "FR", "LHR": "GB",
+    "MAD": "ES", "MXP": "IT",
+
+    "SIN": "SG", "KUL": "MY", "BKK": "TH",
+    "MNL": "PH",
+
+    "SYD": "AU", "MEL": "AU",
+
+    "GRU": "BR", "SCL": "CL",
+}
+
+# -------------------------------
+# 数据源（可自行增删）
+# -------------------------------
 SOURCES = [
     "https://cf.vvhan.com",
     "https://cf.090227.xyz",
@@ -22,6 +50,9 @@ IPV4_REGEX = re.compile(
     r"\b(?:(?:2[0-4]\d|25[0-5]|1?\d?\d)\.){3}(?:2[0-4]\d|25[0-5]|1?\d?\d)\b"
 )
 
+# -------------------------------
+# 工具函数
+# -------------------------------
 def fetch_url(url: str, timeout: int = 10) -> str:
     headers = {"User-Agent": "Mozilla/5.0"}
     req = urllib.request.Request(url, headers=headers)
@@ -48,25 +79,31 @@ def basic_reachable(ip: str, port: int = 443, timeout: float = 0.8) -> bool:
     except:
         return False
 
-def get_ip_location(ip: str) -> str:
+# -------------------------------
+# 获取 Cloudflare 真实机房
+# -------------------------------
+def get_cf_location(ip: str) -> str:
     """
-    返回格式：国家-地区-城市
+    返回国家简写，如 US、HK、JP、DE
     """
-    url = f"https://ipinfo.io/{ip}/json"
+    url = f"http://{ip}/cdn-cgi/trace"
     try:
-        with urllib.request.urlopen(url, timeout=2) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-            country = data.get("country", "")
-            region = data.get("region", "")
-            city = data.get("city", "")
-            loc = "-".join([x for x in [country, region, city] if x])
-            return loc if loc else "Unknown"
+        with urllib.request.urlopen(url, timeout=1.5) as resp:
+            text = resp.read().decode("utf-8", errors="ignore")
+            for line in text.split("\n"):
+                if line.startswith("colo="):
+                    colo = line.split("=")[1].strip().upper()
+                    return CLO_MAP.get(colo, "UN")
     except:
-        return "Unknown"
+        return "UN"
 
+# -------------------------------
+# 主流程
+# -------------------------------
 def main():
     all_ips = set()
 
+    print(f"[INFO] Fetching from {len(SOURCES)} sources...")
     for url in SOURCES:
         text = fetch_url(url)
         ips = extract_ipv4(text)
@@ -75,7 +112,7 @@ def main():
             if n:
                 all_ips.add(n)
 
-    print(f"[INFO] unique IP count: {len(all_ips)}")
+    print(f"[INFO] Unique IP count: {len(all_ips)}")
 
     reachable = []
     for ip in sorted(all_ips):
@@ -83,14 +120,14 @@ def main():
             reachable.append(ip)
         time.sleep(0.01)
 
-    print(f"[INFO] reachable IP count: {len(reachable)}")
+    print(f"[INFO] Reachable IP count: {len(reachable)}")
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         for ip in reachable:
-            loc = get_ip_location(ip)
+            loc = get_cf_location(ip)
             f.write(f"{ip}#{loc}\n")
 
-    print(f"[INFO] write {len(reachable)} lines to {OUTPUT_FILE}")
+    print(f"[INFO] Write {len(reachable)} lines to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
