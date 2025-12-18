@@ -1,157 +1,56 @@
 #!/usr/bin/env python3
-import os
-import re
-import sys
-import time
-import socket
-import ipaddress
-import urllib.request
-import subprocess
+import requests
+import traceback
 
 # -------------------------------
-# Cloudflare 机房代码 → 国家简写
+# 获取优选 IP 列表
 # -------------------------------
-CLO_MAP = {
-    "HKG": "HK", "TPE": "TW",
-    "NRT": "JP", "KIX": "JP", "FUK": "JP",
-
-    "LAX": "US", "SJC": "US", "SEA": "US",
-    "ORD": "US", "IAD": "US", "DFW": "US",
-    "MIA": "US", "ATL": "US", "BOS": "US",
-    "EWR": "US",
-
-    "FRA": "DE", "MUC": "DE", "HAM": "DE",
-
-    "AMS": "NL", "CDG": "FR", "LHR": "GB",
-    "MAD": "ES", "MXP": "IT",
-
-    "SIN": "SG", "KUL": "MY", "BKK": "TH",
-    "MNL": "PH",
-
-    "SYD": "AU", "MEL": "AU",
-
-    "GRU": "BR", "SCL": "CL",
-}
+def get_ip_list(timeout=10, max_retries=5):
+    url = "https://ip.164746.xyz/ipTop.html"
+    for attempt in range(max_retries):
+        try:
+            resp = requests.get(url, timeout=timeout)
+            if resp.status_code == 200:
+                return [ip.strip() for ip in resp.text.split(",") if ip.strip()]
+        except Exception as e:
+            print(f"获取 IP 失败 (尝试 {attempt+1}/{max_retries}): {e}")
+            traceback.print_exc()
+    return []
 
 # -------------------------------
-# 数据源
+# 查询 IP 归属地（国家简写）
 # -------------------------------
-SOURCES = [
-    "https://cf.vvhan.com",
-    "https://cf.090227.xyz",
-    "https://ip.164746.xyz",
-    "https://stock.hostmonit.com/CloudFlareYes",
-    "https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt",
-]
-
-OUTPUT_FILE = os.environ.get("CF_OUTPUT_FILE", "cf_ipv4.txt")
-
-IPV4_REGEX = re.compile(
-    r"\b(?:(?:2[0-4]\d|25[0-5]|1?\d?\d)\.){3}(?:2[0-4]\d|25[0-5]|1?\d?\d)\b"
-)
-
-# -------------------------------
-# 工具函数
-# -------------------------------
-def fetch_url(url: str, timeout: int = 10) -> str:
-    headers = {"User-Agent": "Mozilla/5.0"}
-    req = urllib.request.Request(url, headers=headers)
+def get_country(ip):
+    url = f"https://ipinfo.io/{ip}/json"
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            charset = resp.headers.get_content_charset() or "utf-8"
-            return resp.read().decode(charset, errors="ignore")
+        resp = requests.get(url, timeout=2)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("country", "UN")
     except:
-        return ""
-
-def extract_ipv4(text: str):
-    return IPV4_REGEX.findall(text) if text else []
-
-def normalize_ipv4(ip: str) -> str:
-    try:
-        return str(ipaddress.ip_address(ip.strip()))
-    except:
-        return ""
-
-def tcp_alive(ip: str, port: int = 443, timeout: float = 0.8) -> bool:
-    try:
-        with socket.create_connection((ip, port), timeout=timeout):
-            return True
-    except:
-        return False
+        pass
+    return "UN"
 
 # -------------------------------
-# TLS + SNI 测试（确保“真的能用”）
-# -------------------------------
-def tls_sni_ok(ip: str) -> bool:
-    """
-    使用 curl + SNI 测试 Cloudflare 是否可用
-    """
-    try:
-        cmd = [
-            "curl", "-I",
-            "--resolve", f"cloudflare.com:443:{ip}",
-            "https://cloudflare.com",
-            "--max-time", "2",
-            "-o", "/dev/null"
-        ]
-        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return r.returncode == 0
-    except:
-        return False
-
-# -------------------------------
-# 获取 Cloudflare 真实机房
-# -------------------------------
-def get_cf_location(ip: str) -> str:
-    url = f"http://{ip}/cdn-cgi/trace"
-    try:
-        with urllib.request.urlopen(url, timeout=1.5) as resp:
-            text = resp.read().decode("utf-8", errors="ignore")
-            for line in text.split("\n"):
-                if line.startswith("colo="):
-                    colo = line.split("=")[1].strip().upper()
-                    return CLO_MAP.get(colo, "UN")
-    except:
-        return "UN"
-
-# -------------------------------
-# 主流程
+# 主函数：生成 TXT
 # -------------------------------
 def main():
-    all_ips = set()
+    ip_list = get_ip_list()
 
-    print(f"[INFO] Fetching from {len(SOURCES)} sources...")
-    for url in SOURCES:
-        text = fetch_url(url)
-        ips = extract_ipv4(text)
-        for ip in ips:
-            n = normalize_ipv4(ip)
-            if n:
-                all_ips.add(n)
+    if not ip_list:
+        print("未获取到 IP 列表")
+        return
 
-    print(f"[INFO] Unique IP count: {len(all_ips)}")
+    print(f"获取到 {len(ip_list)} 个 IP，开始查询归属地…")
 
-    alive = []
-    for ip in sorted(all_ips):
-        if tcp_alive(ip):
-            alive.append(ip)
-        time.sleep(0.01)
+    with open("cf_ipv4.txt", "w", encoding="utf-8") as f:
+        for ip in ip_list:
+            country = get_country(ip)
+            f.write(f"{ip}#{country}\n")
+            print(f"{ip} → {country}")
 
-    print(f"[INFO] TCP alive count: {len(alive)}")
+    print("\n✅ 已生成 cf_ipv4.txt")
 
-    usable = []
-    for ip in alive:
-        if tls_sni_ok(ip):
-            usable.append(ip)
-
-    print(f"[INFO] TLS usable count: {len(usable)}")
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        for ip in usable:
-            loc = get_cf_location(ip)
-            f.write(f"{ip}#{loc}\n")
-
-    print(f"[INFO] Write {len(usable)} lines to {OUTPUT_FILE}")
-
+# -------------------------------
 if __name__ == "__main__":
     main()
