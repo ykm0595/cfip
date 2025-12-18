@@ -11,28 +11,24 @@ def fetch_ip_list():
         resp = requests.get(HTML_SOURCE, timeout=10)
         if resp.status_code == 200:
             html = resp.text
-            # 从 HTML 中提取 IPv4
             ips = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", html)
-            return list(set(ips))  # 去重
+            return list(set(ips))
     except Exception as e:
         print("获取 IP 列表失败:", e)
     return []
 
-def ping_ip(ip):
+def test_speed(ip):
     try:
         result = subprocess.run(
-            ["ping", "-c", "3", "-W", "1", ip],
+            ["curl", "-o", "/dev/null", "-s", "-w", "%{speed_download}", "--max-time", "3", f"https://{ip}/cdn-cgi/trace"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
         )
-        for line in result.stdout.split("\n"):
-            if "avg" in line:
-                avg = line.split("/")[4]
-                return float(avg)
+        speed = float(result.stdout.strip())
+        return speed
     except:
-        pass
-    return 9999.0
+        return 0.0
 
 def main():
     print("=== 获取 Cloudflare IP 列表（HTML） ===")
@@ -43,23 +39,23 @@ def main():
         open(OUTPUT_FILE, "w").close()
         return
 
-    print(f"获取到 {len(ips)} 个 IP，开始测试延迟…")
+    print(f"获取到 {len(ips)} 个 IP，开始测速…")
 
     best_ip = None
-    best_rtt = 9999.0
+    best_speed = 0.0
 
-    for ip in ips[:50]:  # 限制前 50 个，避免 Actions 超时
-        print(f"测试 {ip} ...")
-        rtt = ping_ip(ip)
-        print(f"RTT = {rtt} ms")
+    for ip in ips[:50]:
+        print(f"测速 {ip} ...")
+        speed = test_speed(ip)
+        print(f"Speed = {speed}")
 
-        if rtt < best_rtt:
-            best_rtt = rtt
+        if speed > best_speed:
+            best_speed = speed
             best_ip = ip
 
     print("\n=== 最终结果 ===")
     print("最快 IP:", best_ip)
-    print("延迟:", best_rtt)
+    print("速度:", best_speed)
 
     with open(OUTPUT_FILE, "w") as f:
         f.write(best_ip + "\n")
