@@ -1,0 +1,47 @@
+name: CF 优选 IP 聚合
+
+on:
+  schedule:
+    # 每 4 小时跑一次（UTC），根据需要调整
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+
+jobs:
+  collect-cf-ip:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Collect CF IPs
+        env:
+          CF_OUTPUT_FILE: cf_ipv4.txt
+        run: |
+          python scripts/collect_cf_ip.py
+
+      - name: Commit & Push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git status --porcelain | grep -q "cf_ipv4.txt"; then
+            echo "[INFO] changes detected, committing..."
+            git add cf_ipv4.txt
+            git commit -m "Update cf_ipv4.txt [skip ci]" || exit 0
+            git push
+          else
+            echo "[INFO] no changes in cf_ipv4.txt"
+          fi
