@@ -1,44 +1,38 @@
-name: Generate CF IP List
+name: Generate CF IP
 
 on:
   schedule:
-    - cron: "0 */4 * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 jobs:
-  generate:
+  run:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: List files
+        run: ls -R .
 
-      - name: Install dependencies
+      - name: Run Python script
+        run: python scripts/generate_ip_country.py
+
+      - name: Show output file
         run: |
-          pip install requests
+          echo "=== cf_ipv4.txt 内容 ==="
+          cat cf_ipv4.txt || echo "文件不存在"
 
-      - name: Run IP generator
-        run: |
-          python scripts/generate_ip_country.py
-
-      - name: Commit & Push changes
+      - name: Commit & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           if git status --porcelain | grep -q "cf_ipv4.txt"; then
-            echo "Changes detected, committing..."
             git add cf_ipv4.txt
             git commit -m "Update cf_ipv4.txt [auto]"
             git push
           else
-            echo "No changes detected."
+            echo "没有变化，不提交"
           fi
