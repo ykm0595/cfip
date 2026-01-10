@@ -1,28 +1,25 @@
 #!/usr/bin/env python3
-import requests
+import requests, re
 
-URL = "https://www.wetest.vip/api/cloudflare/address_v4"
+URL = "https://www.wetest.vip/page/cloudflare/addressv4.html"
 
 def fetch_cf_ips():
     headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/120.0 Safari/537.36",
-        "Referer": "https://www.wetest.vip/page/cloudflare/addressv4.html"
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/120 Safari/537.36"
     }
     resp = requests.get(URL, headers=headers, timeout=15)
     resp.raise_for_status()
-    data = resp.json()
-    ips = [item.get("ip", "").strip() for item in data.get("data", []) if item.get("ip")]
-    return ips
+    html = resp.text
+    # 用正则匹配 IPv4 地址
+    ips = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", html)
+    # 去重
+    return list(dict.fromkeys(ips))
 
 def save_txt(ips):
-    # cf_ipv4.txt → ip#优选1,2,3...
     with open("cf_ipv4.txt", "w") as f:
         for idx, ip in enumerate(ips, start=1):
             f.write(f"{ip}#优选{idx}\n")
 
-    # cf_hk.txt → ip#优选1,2,3...
     with open("cf_hk.txt", "w") as f:
         for idx, ip in enumerate(ips, start=1):
             f.write(f"{ip}#优选{idx}\n")
