@@ -45,7 +45,8 @@ jobs:
               resp = requests.get(URL, headers=headers, timeout=15)
               resp.raise_for_status()
               data = resp.json()
-              return [item["ip"] for item in data.get("data", [])]
+              ips = [item.get("ip", "").strip() for item in data.get("data", []) if item.get("ip")]
+              return ips
 
           def save_txt(ips):
               # cf_ipv4.txt → ip#优选1,2,3...
@@ -59,15 +60,12 @@ jobs:
                       f.write(f"{ip}#优选{idx}\n")
 
           if __name__ == "__main__":
-              try:
-                  ips = fetch_cf_ips()
-                  if not ips:
-                      print("没有抓到任何 IP")
-                  else:
-                      save_txt(ips)
-                      print(f"成功生成 {len(ips)} 个 IP 到 cf_ipv4.txt 和 cf_hk.txt")
-              except Exception as e:
-                  print(f"抓取失败: {e}")
+              ips = fetch_cf_ips()
+              if not ips:
+                  print("没有抓到任何 IP")
+              else:
+                  save_txt(ips)
+                  print(f"成功生成 {len(ips)} 个 IP 到 cf_ipv4.txt 和 cf_hk.txt")
           EOF
 
           python3 scripts/cf_wetest_ip.py
