@@ -26,16 +26,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Fetch Cloudflare IPs
+      - name: Fetch Cloudflare 优选 IP
         run: |
-          cat > scripts/generate_cf_ip.py << 'EOF'
+          cat > scripts/cf_wetest_ip.py << 'EOF'
           #!/usr/bin/env python3
           import requests
 
-          URL = "https://stock.hostmonit.com/CloudFlareYes"
+          URL = "https://www.wetest.vip/api/cloudflare/address_v4"
 
           def fetch_cf_ips():
-              resp = requests.get(URL, timeout=10)
+              headers = {
+                  "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                "Chrome/120.0 Safari/537.36",
+                  "Referer": "https://www.wetest.vip/page/cloudflare/addressv4.html"
+              }
+              resp = requests.get(URL, headers=headers, timeout=15)
               resp.raise_for_status()
               data = resp.json()
               return [item["ip"] for item in data.get("data", [])]
@@ -49,15 +55,18 @@ jobs:
                       f.write(f"{ip}#优选2\n")
 
           if __name__ == "__main__":
-              ips = fetch_cf_ips()
-              if not ips:
-                  print("没有抓到任何 IP")
-              else:
-                  save_txt(ips)
-                  print(f"生成 {len(ips)} 个 IP 到 cf_ipv4.txt 和 cf_hk.txt")
+              try:
+                  ips = fetch_cf_ips()
+                  if not ips:
+                      print("没有抓到任何 IP")
+                  else:
+                      save_txt(ips)
+                      print(f"成功抓取 {len(ips)} 个优选 IP，已写入 cf_ipv4.txt 和 cf_hk.txt")
+              except Exception as e:
+                  print(f"抓取失败: {e}")
           EOF
 
-          python3 scripts/generate_cf_ip.py
+          python3 scripts/cf_wetest_ip.py
 
       - name: Show results
         run: |
@@ -74,7 +83,7 @@ jobs:
 
           if git status --porcelain | grep -qE "cf_ipv4.txt|cf_hk.txt"; then
             git add cf_ipv4.txt cf_hk.txt
-            git commit -m "Auto update CF IP lists"
+            git commit -m "Auto update CF 优选 IP lists"
             git push
           else
             echo "没有变化，不提交"
