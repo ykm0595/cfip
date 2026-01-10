@@ -13,7 +13,8 @@ def fetch_cf_ips():
     resp = requests.get(URL, headers=headers, timeout=15)
     resp.raise_for_status()
     data = resp.json()
-    return [item["ip"] for item in data.get("data", [])]
+    ips = [item.get("ip", "").strip() for item in data.get("data", []) if item.get("ip")]
+    return ips
 
 def save_txt(ips):
     # cf_ipv4.txt → ip#优选1,2,3...
