@@ -16,8 +16,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run IP generation script
-        run: python3 scripts/generate_ip_country.py
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Fetch Cloudflare IPs
+        run: |
+          cat > scripts/generate_cf_ip.py << 'EOF'
+          #!/usr/bin/env python3
+          import requests
+
+          URL = "https://stock.hostmonit.com/CloudFlareYes"
+
+          def fetch_cf_ips():
+              resp = requests.get(URL, timeout=10)
+              resp.raise_for_status()
+              data = resp.json()
+              return [item["ip"] for item in data.get("data", [])]
+
+          def save_txt(ips):
+              with open("cf_ipv4.txt", "w") as f:
+                  for ip in ips:
+                      f.write(f"{ip}#优选1\n")
+              with open("cf_hk.txt", "w") as f:
+                  for ip in ips:
+                      f.write(f"{ip}#优选2\n")
+
+          if __name__ == "__main__":
+              ips = fetch_cf_ips()
+              if not ips:
+                  print("没有抓到任何 IP")
+              else:
+                  save_txt(ips)
+                  print(f"生成 {len(ips)} 个 IP 到 cf_ipv4.txt 和 cf_hk.txt")
+          EOF
+
+          python3 scripts/generate_cf_ip.py
 
       - name: Show results
         run: |
