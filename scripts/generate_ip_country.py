@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import requests
 
-# 真实数据接口（wetest 的 API）
 URL = "https://www.wetest.vip/api/cloudflare/address_v4"
 
 def fetch_cf_ips():
@@ -14,18 +13,18 @@ def fetch_cf_ips():
     resp = requests.get(URL, headers=headers, timeout=15)
     resp.raise_for_status()
     data = resp.json()
-
-    # 提取 IP 列表
-    ips = [item["ip"] for item in data.get("data", [])]
-    return ips
+    return [item["ip"] for item in data.get("data", [])]
 
 def save_txt(ips):
+    # cf_ipv4.txt → ip#优选1,2,3...
     with open("cf_ipv4.txt", "w") as f:
-        for ip in ips:
-            f.write(f"{ip}#优选1\n")
+        for idx, ip in enumerate(ips, start=1):
+            f.write(f"{ip}#优选{idx}\n")
+
+    # cf_hk.txt → ip#优选1,2,3...
     with open("cf_hk.txt", "w") as f:
-        for ip in ips:
-            f.write(f"{ip}#优选2\n")
+        for idx, ip in enumerate(ips, start=1):
+            f.write(f"{ip}#优选{idx}\n")
 
 if __name__ == "__main__":
     try:
@@ -34,6 +33,6 @@ if __name__ == "__main__":
             print("没有抓到任何 IP")
         else:
             save_txt(ips)
-            print(f"成功抓取 {len(ips)} 个 IP，已写入 cf_ipv4.txt 和 cf_hk.txt")
+            print(f"成功生成 {len(ips)} 个 IP 到 cf_ipv4.txt 和 cf_hk.txt")
     except Exception as e:
         print(f"抓取失败: {e}")
