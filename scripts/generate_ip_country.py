@@ -4,21 +4,20 @@ import requests
 URL = "https://stock.hostmonit.com/CloudFlareYes"
 
 def fetch_cf_ips():
-    resp = requests.get(URL, timeout=10)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/120.0 Safari/537.36"
+    }
+    resp = requests.get(URL, headers=headers, timeout=10)
     resp.raise_for_status()
     data = resp.json()
-
-    # 提取 IP 列表
-    ips = [item["ip"] for item in data.get("data", [])]
-    return ips
+    return [item["ip"] for item in data.get("data", [])]
 
 def save_txt(ips):
-    # cf_ipv4.txt：ip#优选1
     with open("cf_ipv4.txt", "w") as f:
         for ip in ips:
             f.write(f"{ip}#优选1\n")
-
-    # cf_hk.txt：ip#优选2
     with open("cf_hk.txt", "w") as f:
         for ip in ips:
             f.write(f"{ip}#优选2\n")
