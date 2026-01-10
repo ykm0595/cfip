@@ -31,31 +31,24 @@ jobs:
           mkdir -p scripts
           cat > scripts/cf_wetest_ip.py << 'EOF'
           #!/usr/bin/env python3
-          import requests
+          import requests, re
 
-          URL = "https://www.wetest.vip/api/cloudflare/address_v4"
+          URL = "https://www.wetest.vip/page/cloudflare/addressv4.html"
 
           def fetch_cf_ips():
               headers = {
-                  "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
-                                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                                "Chrome/120.0 Safari/537.36",
-                  "Referer": "https://www.wetest.vip/page/cloudflare/addressv4.html"
+                  "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/120 Safari/537.36"
               }
               resp = requests.get(URL, headers=headers, timeout=15)
               resp.raise_for_status()
-              data = resp.json()
-              ips = [item.get("ip", "").strip() for item in data.get("data", []) if item.get("ip")]
-              return ips
+              html = resp.text
+              # 匹配 IPv4 地址
+              ips = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", html)
+              # 去重保持顺序
+              return list(dict.fromkeys(ips))
 
           def save_txt(ips):
-              # cf_ipv4.txt → ip#优选1,2,3...
               with open("cf_ipv4.txt", "w") as f:
-                  for idx, ip in enumerate(ips, start=1):
-                      f.write(f"{ip}#优选{idx}\n")
-
-              # cf_hk.txt → ip#优选1,2,3...
-              with open("cf_hk.txt", "w") as f:
                   for idx, ip in enumerate(ips, start=1):
                       f.write(f"{ip}#优选{idx}\n")
 
@@ -65,7 +58,7 @@ jobs:
                   print("没有抓到任何 IP")
               else:
                   save_txt(ips)
-                  print(f"成功生成 {len(ips)} 个 IP 到 cf_ipv4.txt 和 cf_hk.txt")
+                  print(f"成功生成 {len(ips)} 个 IP 到 cf_ipv4.txt")
           EOF
 
           python3 scripts/cf_wetest_ip.py
@@ -73,19 +66,16 @@ jobs:
       - name: Show results
         run: |
           echo "=== cf_ipv4.txt ==="
-          cat cf_ipv4.txt || echo "文件不存在"
-          echo ""
-          echo "=== cf_hk.txt ==="
-          cat cf_hk.txt || echo "文件不存在"
+          head -n 20 cf_ipv4.txt || echo "文件不存在"
 
       - name: Commit & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git status --porcelain | grep -qE "cf_ipv4.txt|cf_hk.txt"; then
-            git add cf_ipv4.txt cf_hk.txt
-            git commit -m "Auto update CF 优选 IP lists"
+          if git status --porcelain | grep -q "cf_ipv4.txt"; then
+            git add cf_ipv4.txt
+            git commit -m "Auto update CF 优选 IP list"
             git push
           else
             echo "没有变化，不提交"
